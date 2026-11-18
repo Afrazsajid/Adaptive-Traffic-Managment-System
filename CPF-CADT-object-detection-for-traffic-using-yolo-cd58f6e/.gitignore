@@ -1,0 +1,62 @@
+# Python cache and build files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# Virtual environments and secrets
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.zip
+
+# Datasets (large and reproducible)
+dataset/
+vehicle_dataset/
+
+# Model weights and exported models
+*.pt
+*.pth
+*.onnx
+*.engine
+*.tflite
+
+# Training, validation, and inference outputs
+runs/
+runs_compare/
+results/
+validation_results/
+yolov5_eval/
+yolov8_eval/
+
+# User-uploaded and test media
+app/videos/
+test/image/
+test/video/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
