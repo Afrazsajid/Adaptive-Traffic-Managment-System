@@ -311,18 +311,6 @@ class TrafficControlDashboard(QMainWindow):
         # Start global traffic flow (lights management)
         self.traffic_controller.start()
 
-        # Explicitly force Camera 1 to GREEN to start the sequence
-        if len(self.camera_widgets) > 0:
-            print("Forcing Camera 1 to GREEN for initial cycle...")
-            self.camera_widgets[0].set_light("GREEN")
-
-        # Ensure the first camera (C1) is actually resumed
-        # because load_video initially started them all in PAUSED mode
-        if len(self.camera_widgets) > 0:
-            self.camera_widgets[0].set_light(
-                "GREEN"
-            )  # Triggers worker.resume() via _on_light_clicked
-
     def _stop_simulation(self):
         """Stop the traffic simulation."""
         print("Stopping traffic simulation...")

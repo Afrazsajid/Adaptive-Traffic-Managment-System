@@ -3,9 +3,9 @@ Global Traffic Logic Controller
 Coordinates sequential light phases across multiple cameras.
 """
 
-from PySide6.QtCore import QObject, QTimer, Slot
-from app.config import TRAFFIC_LIGHT_SETTINGS, CAMERA_GREEN_DEFAULTS
-from app.utils.traffic_logic import recalculate_green_durations
+from PySide6.QtCore import QObject, QSignalBlocker, QTimer, Slot
+from app.config import TRAFFIC_LIGHT_SETTINGS
+from app.utils.traffic_logic import green_duration_for_count
 
 
 class GlobalTrafficController(QObject):
@@ -14,22 +14,11 @@ class GlobalTrafficController(QObject):
     # Using imported settings for global logic
     TRANSITION_DELAY = int(TRAFFIC_LIGHT_SETTINGS.get("all_red_delay", 1.5) * 1000)
 
-    # Defaults fetched from config
-    DEFAULT_MAX_GREEN = [
-        CAMERA_GREEN_DEFAULTS.get(1, 30),
-        CAMERA_GREEN_DEFAULTS.get(2, 45),
-        CAMERA_GREEN_DEFAULTS.get(3, 30),
-        CAMERA_GREEN_DEFAULTS.get(4, 20),
-    ]
-
     def __init__(self, camera_widgets: list, parent=None):
         super().__init__(parent)
         self.cameras = camera_widgets
         self._current_idx = 0
         self._is_running = False
-
-        # Current green durations (smoothed)
-        self._current_green_times = [float(t) for t in self.DEFAULT_MAX_GREEN]
 
         # Periodic update timer for dynamic adjustment
         self._update_timer = QTimer(self)
@@ -65,29 +54,15 @@ class GlobalTrafficController(QObject):
         if not self._is_running:
             return
 
-        car_counts = [cam._car_count for cam in self.cameras]
+        for cam in self.cameras:
+            self._update_camera_green_duration(cam)
 
-        # Call business logic from utils
-        self._current_green_times = recalculate_green_durations(
-            self._current_green_times, car_counts, self.DEFAULT_MAX_GREEN
-        )
-
-        # Print debug log
-        print("\n--- DYNAMIC TRAFFIC UPDATE ---")
-        for i, cam in enumerate(self.cameras):
-            # Update camera UI settings with the logic result
-            final_sec = int(self._current_green_times[i])
-            cam.header.timer_input.setValue(final_sec)
-
-            # LIVE INJECTION: Only apply if currently Green
-            if cam._active_light == "green":
-                if final_sec < cam._remaining_time:
-                    cam._remaining_time = final_sec
-
-            print(
-                f"Cam {i+1}: D:{self.DEFAULT_MAX_GREEN[i]}s | C:{cam._car_count} Cars | G:{final_sec}s"
-            )
-        print("----------------------------\n")
+    def _update_camera_green_duration(self, cam):
+        duration = green_duration_for_count(cam._car_count)
+        cam.TIMERS["green"] = duration
+        # Refresh the next green time without resetting an active countdown.
+        with QSignalBlocker(cam.header.timer_input):
+            cam.header.timer_input.setValue(duration)
 
     def _activate_next(self):
         """Activate the next camera in a strict 1-2-3-4 sequence."""
@@ -109,12 +84,7 @@ class GlobalTrafficController(QObject):
             f"DEBUG: Activating green for Camera {cam._camera_id} ({cam._car_count} cars)"
         )
 
-        # 2. Apply the dynamic green time from YOLO brain
-        optimized_green = int(self._current_green_times[self._current_idx])
-        cam.TIMERS["green"] = optimized_green
-        cam.header.timer_input.setValue(optimized_green)
-
-        # Force state change
+        self._update_camera_green_duration(cam)
         cam.set_light("GREEN")
 
     @Slot(int)
@@ -172,8 +142,7 @@ class GlobalTrafficController(QObject):
             print(
                 f"DEBUG: No cars on other roads. Holding GREEN for Camera {camera_id}..."
             )
-            # Give a small 5-second extension to keep moving
-            current_cam.TIMERS["green"] = 5
+            self._update_camera_green_duration(current_cam)
             current_cam.set_light("GREEN")
             return
         # ------------------------
